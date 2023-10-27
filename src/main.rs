@@ -42,39 +42,39 @@ enum Card {
     Ace(CardType),
 }
 
+impl Card {
+    fn get_type(&self) -> CardType {
+        use Card::*;
+        match self {
+            Two(ct) | Three(ct) | Four(ct) | Five(ct) | Six(ct) | Seven(ct) | Eight(ct)
+            | Nine(ct) | Ten(ct) | Jack(ct) | Queen(ct) | King(ct) | Ace(ct) => ct.clone(),
+        }
+    }
+
+    fn get_value(&self) -> i32 {
+        match self {
+            Card::Two(_) => 2,
+            Card::Three(_) => 3,
+            Card::Four(_) => 4,
+            Card::Five(_) => 5,
+            Card::Six(_) => 6,
+            Card::Seven(_) => 7,
+            Card::Eight(_) => 8,
+            Card::Nine(_) => 9,
+            Card::Ten(_) => 10,
+            Card::Jack(_) => 11,
+            Card::Queen(_) => 12,
+            Card::King(_) => 13,
+            Card::Ace(_) => 14,
+        }
+    }
+}
+
 impl PartialOrd for Card {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        let self_value = match self {
-            Card::Two(_) => 2,
-            Card::Three(_) => 3,
-            Card::Four(_) => 4,
-            Card::Five(_) => 5,
-            Card::Six(_) => 6,
-            Card::Seven(_) => 7,
-            Card::Eight(_) => 8,
-            Card::Nine(_) => 9,
-            Card::Ten(_) => 10,
-            Card::Jack(_) => 11,
-            Card::Queen(_) => 12,
-            Card::King(_) => 13,
-            Card::Ace(_) => 14,
-        };
+        let self_value = self.get_value();
 
-        let other_value = match other {
-            Card::Two(_) => 2,
-            Card::Three(_) => 3,
-            Card::Four(_) => 4,
-            Card::Five(_) => 5,
-            Card::Six(_) => 6,
-            Card::Seven(_) => 7,
-            Card::Eight(_) => 8,
-            Card::Nine(_) => 9,
-            Card::Ten(_) => 10,
-            Card::Jack(_) => 11,
-            Card::Queen(_) => 12,
-            Card::King(_) => 13,
-            Card::Ace(_) => 14,
-        };
+        let other_value = other.get_value();
 
         self_value.partial_cmp(&other_value)
     }
@@ -221,12 +221,102 @@ impl Hand {
             cards.push((card, false));
         }
         cards.sort();
-        println!("{:#?}", cards);
+        //println!("{:#?}", cards);
 
         Hand {
             cards_index,
-            hand_value: Hand::score_hand(&cards),
+            hand_value: Hand::score_hand(&mut cards),
         }
+    }
+
+    fn straight_flush(hand: &mut Vec<(Card, bool)>) -> Option<Value> {
+        match Hand::flush(hand) {
+            Some(_) => match Hand::straight(hand) {
+                Some(_) => Some(Value::StraightFlush(DetValue::DetCard(
+                    hand[hand.len() - 1].0.clone(),
+                ))),
+                None => None,
+            },
+            None => None,
+        }
+    }
+    fn four_of_a_kind(hand: &mut Vec<(Card, bool)>) -> Option<Value> {
+        if hand[0].0.get_value() == hand[2].0.get_value()
+            || hand[4].0.get_value() == hand[2].0.get_value()
+        {
+            let aux_value = hand[2].0.get_value();
+            let mut strikes = 0;
+            let mut card_max = hand[2].0.clone();
+
+            for (_, (l, _)) in hand.iter().enumerate() {
+                if l.get_value() != aux_value {
+                    strikes += 1;
+                    if strikes > 1 {
+                        return None;
+                    }
+                    card_max = l.clone();
+                }
+            }
+
+            Some(Value::FourOfaKind(DetValue::DetCardAndHigCard(
+                hand[2].0.clone(),
+                card_max,
+            )))
+        } else {
+            None
+        }
+    }
+    fn full_house(hand: &mut Vec<(Card, bool)>) -> Option<Value> {
+        if hand[0].0.get_value() == hand[2].0.get_value()
+            && hand[4].0.get_value() == hand[3].0.get_value()
+        {
+            Some(Value::FullHouse(DetValue::DetCardAndHigCard(
+                hand[0].0.clone(),
+                hand[4].0.clone(),
+            )))
+        } else if hand[4].0.get_value() == hand[2].0.get_value()
+            && hand[0].0.get_value() == hand[1].0.get_value()
+        {
+            Some(Value::FullHouse(DetValue::DetCardAndHigCard(
+                hand[4].0.clone(),
+                hand[0].0.clone(),
+            )))
+        } else {
+            None
+        }
+    }
+    fn flush(hand: &mut Vec<(Card, bool)>) -> Option<Value> {
+        let mut aux: CardType = hand[0].0.get_type();
+        for (index, (card, used)) in hand.iter().enumerate() {
+            if card.get_type() == aux {
+                continue;
+            } else {
+                return None;
+            }
+        }
+
+        Some(Value::Flush(DetValue::DetCard(
+            hand[hand.len() - 1].0.clone(),
+        )))
+    }
+    fn straight(hand: &mut Vec<(Card, bool)>) -> Option<Value> {
+        if hand[hand.len() - 1].0.get_value() - hand[0].0.get_value() == 4 {
+            Some(Value::Straight(DetValue::DetCard(
+                hand[hand.len() - 1].0.clone(),
+            )))
+        } else {
+            None
+        }
+    }
+    fn three_of_a_kind(hand: &mut Vec<(Card, bool)>) -> Option<Value> {
+        None
+    }
+    fn two_pair(hand: &mut Vec<(Card, bool)>) -> Option<Value> {
+        None
+    }
+
+    fn one_pair(hand: &mut Vec<(Card, bool)>) -> Option<Value> {
+        None
     }
 
     fn high_card(hand: &Vec<(Card, bool)>) -> Option<Value> {
@@ -252,8 +342,18 @@ impl Hand {
         }
     }
 
-    fn score_hand(hand: &Vec<(Card, bool)>) -> Value {
-        Hand::high_card(hand).unwrap()
+    fn score_hand(hand: &mut Vec<(Card, bool)>) -> Value {
+        Hand::straight_flush(hand).unwrap_or(Hand::four_of_a_kind(hand).unwrap_or(
+            Hand::full_house(hand).unwrap_or(Hand::flush(hand).unwrap_or(
+                Hand::straight(hand).unwrap_or(
+                    Hand::three_of_a_kind(hand).unwrap_or(
+                        Hand::two_pair(hand).unwrap_or(
+                            Hand::one_pair(hand).unwrap_or(Hand::high_card(hand).unwrap()),
+                        ),
+                    ),
+                ),
+            )),
+        ))
     }
 }
 
@@ -272,10 +372,30 @@ fn main() {
     println!("{}", h1 < h2);
 
     let hand1 = Hand::new("4S JH 5D 3S 6H", 1);
-    //let hand2 = Hand::new("3H 4H 5C 6C JD", 0);
-
-    //println!("{:#?}", hand1);
+    println!("{:#?}", hand1.hand_value);
 
     println!("============================================================================");
-    //println!("{:#?}", hand2);
+
+    let hand2 = Hand::new("3H AH 5H 6H JH", 0);
+    println!("{:#?}", hand2.hand_value);
+
+    println!("============================================================================");
+
+    let hand3 = Hand::new("4S 7H 6D 5S 3H", 0);
+    println!("{:#?}", hand3.hand_value);
+
+    println!("============================================================================");
+
+    let hand4 = Hand::new("4S 7S 6S 5S 3S", 0);
+    println!("{:#?}", hand4.hand_value);
+
+    println!("============================================================================");
+
+    let hand5 = Hand::new("4S 4H 4D 4S AS", 0);
+    println!("{:#?}", hand5.hand_value);
+
+    println!("============================================================================");
+
+    let hand6 = Hand::new("4S 4H AD AS AS", 0);
+    println!("{:#?}", hand6.hand_value);
 }
