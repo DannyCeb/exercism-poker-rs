@@ -1,7 +1,7 @@
 #![allow(unused)]
 use std::cmp::Ordering;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, Ord)]
 enum CardType {
     Clubs,
     Diamonds,
@@ -9,7 +9,23 @@ enum CardType {
     Spades,
 }
 
-#[derive(Debug, Copy, Clone)]
+impl PartialOrd for CardType {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(Ordering::Equal)
+    }
+}
+
+impl PartialEq for CardType {
+    fn eq(&self, other: &Self) -> bool {
+        use CardType::*;
+        match (self, other) {
+            (Clubs, Clubs) | (Diamonds, Diamonds) | (Hearts, Hearts) | (Spades, Spades) => true,
+            _ => false,
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, Ord, Eq)]
 enum Card {
     Two(CardType),
     Three(CardType),
@@ -172,7 +188,6 @@ impl PartialEq for Value {
 struct Hand {
     cards_index: usize,
     hand_value: Value,
-    cards: Vec<(Card, bool)>,
 }
 
 impl Hand {
@@ -205,11 +220,12 @@ impl Hand {
             };
             cards.push((card, false));
         }
+        cards.sort();
+        println!("{:#?}", cards);
 
         Hand {
             cards_index,
             hand_value: Hand::score_hand(&cards),
-            cards,
         }
     }
 
@@ -255,11 +271,11 @@ fn main() {
 
     println!("{}", h1 < h2);
 
-    let hand1 = Hand::new("3S 4S 5D 6H JH", 1);
-    let hand2 = Hand::new("3H 4H 5C 6C JD", 0);
+    let hand1 = Hand::new("4S JH 5D 3S 6H", 1);
+    //let hand2 = Hand::new("3H 4H 5C 6C JD", 0);
 
-    println!("{:#?}", hand1);
+    //println!("{:#?}", hand1);
 
     println!("============================================================================");
-    println!("{:#?}", hand2);
+    //println!("{:#?}", hand2);
 }
