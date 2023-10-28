@@ -296,9 +296,17 @@ impl Hand {
     fn straight_flush(hand: &mut Vec<(Card, bool)>) -> Option<Value> {
         match Hand::flush(hand) {
             Some(_) => match Hand::straight(hand) {
-                Some(_) => Some(Value::StraightFlush(DetValue::DetCard(
-                    hand[hand.len() - 1].0.clone(),
-                ))),
+                Some(_) => {
+                    if hand[0].0.get_value() == 2 && hand[4].0.get_value() == 14 {
+                        Some(Value::StraightFlush(DetValue::DetCard(
+                            hand[hand.len() - 2].0.clone(),
+                        )))
+                    } else {
+                        Some(Value::StraightFlush(DetValue::DetCard(
+                            hand[hand.len() - 1].0.clone(),
+                        )))
+                    }
+                }
                 None => None,
             },
             None => None,
@@ -358,10 +366,14 @@ impl Hand {
                 return None;
             }
         }
-
-        Some(Value::Flush(DetValue::DetCard(
-            hand[hand.len() - 1].0.clone(),
-        )))
+        if hand[0].0.get_value() == 2 && hand[4].0.get_value() == 14 && hand[3].0.get_value() == 13
+        {
+            None
+        } else {
+            Some(Value::Flush(DetValue::DetCard(
+                hand[hand.len() - 1].0.clone(),
+            )))
+        }
     }
     fn straight(hand: &mut Vec<(Card, bool)>) -> Option<Value> {
         if hand[4].0.get_value() - hand[3].0.get_value() == 1
@@ -372,6 +384,13 @@ impl Hand {
             Some(Value::Straight(DetValue::DetCard(
                 hand[hand.len() - 1].0.clone(),
             )))
+        } else if hand[4].0.get_value() == 14
+            && hand[3].0.get_value() == 5
+            && hand[2].0.get_value() == 4
+            && hand[1].0.get_value() == 3
+            && hand[0].0.get_value() == 2
+        {
+            Some(Value::Straight(DetValue::DetCard(hand[0].0.clone())))
         } else {
             None
         }
@@ -528,13 +547,13 @@ fn main() {
 
     println!("{}", h1 < h2);
 
-    let hand1 = Hand::new("AS AC KS KC 6S", 1); // HC
+    let hand1 = Hand::new("4D AD 3D 2D 5D", 1); // HC
     println!("{:#?}", hand1.hand_value);
 
     println!("============================================================================");
 
-    /*let hand2 = Hand::new("2H 2D 2C 8H 5H", 0); // Color
-    println!("{:#?}", hand2.hand_value);*/
+    let hand2 = Hand::new("2H 3H 4H 5H 6H", 0); // Color
+    println!("{:#?}", hand2.hand_value);
 
     /*
     println!("============================================================================");
