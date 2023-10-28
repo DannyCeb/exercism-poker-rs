@@ -1,4 +1,3 @@
-#![allow(unused)]
 use std::cmp::Ordering;
 
 #[derive(Debug, Copy, Clone, Eq, Ord)]
@@ -10,7 +9,7 @@ enum CardType {
 }
 
 impl PartialOrd for CardType {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+    fn partial_cmp(&self, _other: &Self) -> Option<Ordering> {
         Some(Ordering::Equal)
     }
 }
@@ -89,10 +88,23 @@ impl PartialEq for Card {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, Ord, Clone)]
 enum DetValue {
     DetCard(Card),
-    DetCardAndHigCard(Card, Card),
+    DetCardAndHighCard(Card, Card),
+    DetCardOneCardTwoAndHigCard(Card, Card, Card),
+    DetFullHand(Card, Card, Card, Card, Card),
+}
+
+impl DetValue {
+    fn get_card(&self) -> Card {
+        match self {
+            DetValue::DetCard(c) => c.clone(),
+            DetValue::DetCardAndHighCard(c, _) => c.clone(),
+            DetValue::DetCardOneCardTwoAndHigCard(c, _, _) => c.clone(),
+            DetValue::DetFullHand(c, _, _, _, _) => c.clone(),
+        }
+    }
 }
 
 impl PartialOrd for DetValue {
@@ -102,12 +114,40 @@ impl PartialOrd for DetValue {
                 DetValue::DetCard(o_card) => s_card.partial_cmp(&o_card),
                 _ => None,
             },
-            DetValue::DetCardAndHigCard(s_card1, s_card2) => match other {
-                DetValue::DetCardAndHigCard(o_card1, o_card2) => {
+            DetValue::DetCardAndHighCard(s_card1, s_card2) => match other {
+                DetValue::DetCardAndHighCard(o_card1, o_card2) => {
                     if s_card1 != o_card1 {
                         s_card1.partial_cmp(&o_card1)
                     } else {
                         s_card2.partial_cmp(&o_card2)
+                    }
+                }
+                _ => None,
+            },
+            DetValue::DetCardOneCardTwoAndHigCard(s_card1, s_card2, s_card3) => match other {
+                DetValue::DetCardOneCardTwoAndHigCard(o_card1, o_card2, o_card3) => {
+                    if s_card1 != o_card1 {
+                        s_card1.partial_cmp(&o_card1)
+                    } else if s_card2 != o_card2 {
+                        s_card2.partial_cmp(&o_card2)
+                    } else {
+                        s_card3.partial_cmp(&o_card3)
+                    }
+                }
+                _ => None,
+            },
+            DetValue::DetFullHand(s_card1, s_card2, s_card3, s_card4, s_card5) => match other {
+                DetValue::DetFullHand(o_card1, o_card2, o_card3, o_card4, o_card5) => {
+                    if s_card1 != o_card1 {
+                        s_card1.partial_cmp(&o_card1)
+                    } else if s_card2 != o_card2 {
+                        s_card2.partial_cmp(&o_card2)
+                    } else if s_card3 != o_card3 {
+                        s_card3.partial_cmp(&o_card3)
+                    } else if s_card4 != o_card4 {
+                        s_card4.partial_cmp(&o_card4)
+                    } else {
+                        s_card5.partial_cmp(&o_card5)
                     }
                 }
                 _ => None,
@@ -124,7 +164,7 @@ impl PartialEq for DetValue {
         }
     }
 }
-#[derive(Debug)]
+#[derive(Debug, Eq, Ord, Clone)]
 enum Value {
     StraightFlush(DetValue),
     FourOfaKind(DetValue),
@@ -135,6 +175,16 @@ enum Value {
     TwoPair(DetValue),
     OnePair(DetValue),
     HighCard(DetValue),
+}
+
+impl Value {
+    fn get_card(&self) -> Card {
+        use Value::*;
+        match self {
+            StraightFlush(dt) | FourOfaKind(dt) | FullHouse(dt) | Flush(dt) | Straight(dt)
+            | ThreeOfaKind(dt) | TwoPair(dt) | OnePair(dt) | HighCard(dt) => dt.get_card(),
+        }
+    }
 }
 
 impl PartialOrd for Value {
@@ -184,10 +234,24 @@ impl PartialEq for Value {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, Ord, Clone)]
 struct Hand {
     cards_index: usize,
     hand_value: Value,
+}
+impl PartialOrd for Hand {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.hand_value.partial_cmp(&other.hand_value)
+    }
+}
+
+impl PartialEq for Hand {
+    fn eq(&self, other: &Self) -> bool {
+        match self.partial_cmp(other) {
+            Some(Ordering::Equal) => true,
+            _ => false,
+        }
+    }
 }
 
 impl Hand {
@@ -258,7 +322,7 @@ impl Hand {
                 }
             }
 
-            Some(Value::FourOfaKind(DetValue::DetCardAndHigCard(
+            Some(Value::FourOfaKind(DetValue::DetCardAndHighCard(
                 hand[2].0.clone(),
                 card_max,
             )))
@@ -270,14 +334,14 @@ impl Hand {
         if hand[0].0.get_value() == hand[2].0.get_value()
             && hand[4].0.get_value() == hand[3].0.get_value()
         {
-            Some(Value::FullHouse(DetValue::DetCardAndHigCard(
+            Some(Value::FullHouse(DetValue::DetCardAndHighCard(
                 hand[0].0.clone(),
                 hand[4].0.clone(),
             )))
         } else if hand[4].0.get_value() == hand[2].0.get_value()
             && hand[0].0.get_value() == hand[1].0.get_value()
         {
-            Some(Value::FullHouse(DetValue::DetCardAndHigCard(
+            Some(Value::FullHouse(DetValue::DetCardAndHighCard(
                 hand[4].0.clone(),
                 hand[0].0.clone(),
             )))
@@ -286,8 +350,8 @@ impl Hand {
         }
     }
     fn flush(hand: &mut Vec<(Card, bool)>) -> Option<Value> {
-        let mut aux: CardType = hand[0].0.get_type();
-        for (index, (card, used)) in hand.iter().enumerate() {
+        let aux: CardType = hand[0].0.get_type();
+        for (_, (card, _)) in hand.iter().enumerate() {
             if card.get_type() == aux {
                 continue;
             } else {
@@ -300,7 +364,11 @@ impl Hand {
         )))
     }
     fn straight(hand: &mut Vec<(Card, bool)>) -> Option<Value> {
-        if hand[hand.len() - 1].0.get_value() - hand[0].0.get_value() == 4 {
+        if hand[4].0.get_value() - hand[3].0.get_value() == 1
+            && hand[3].0.get_value() - hand[2].0.get_value() == 1
+            && hand[2].0.get_value() - hand[1].0.get_value() == 1
+            && hand[1].0.get_value() - hand[0].0.get_value() == 1
+        {
             Some(Value::Straight(DetValue::DetCard(
                 hand[hand.len() - 1].0.clone(),
             )))
@@ -309,19 +377,94 @@ impl Hand {
         }
     }
     fn three_of_a_kind(hand: &mut Vec<(Card, bool)>) -> Option<Value> {
-        None
+        if hand[0].0.get_value() == hand[2].0.get_value() {
+            Some(Value::ThreeOfaKind(DetValue::DetCardAndHighCard(
+                hand[0].0.clone(),
+                hand[4].0.clone(),
+            )))
+        } else if hand[4].0.get_value() == hand[2].0.get_value() {
+            Some(Value::ThreeOfaKind(DetValue::DetCardAndHighCard(
+                hand[4].0.clone(),
+                hand[1].0.clone(),
+            )))
+        } else if hand[1].0.get_value() == hand[3].0.get_value() {
+            Some(Value::ThreeOfaKind(DetValue::DetCardAndHighCard(
+                hand[2].0.clone(),
+                hand[4].0.clone(),
+            )))
+        } else {
+            None
+        }
     }
     fn two_pair(hand: &mut Vec<(Card, bool)>) -> Option<Value> {
-        None
+        if hand[0].0.get_value() == hand[1].0.get_value()
+            && hand[2].0.get_value() == hand[3].0.get_value()
+        {
+            Some(Value::TwoPair(DetValue::DetCardOneCardTwoAndHigCard(
+                hand[0].0.clone(),
+                hand[2].0.clone(),
+                hand[4].0.clone(),
+            )))
+        } else if hand[0].0.get_value() == hand[1].0.get_value()
+            && hand[4].0.get_value() == hand[3].0.get_value()
+        {
+            Some(Value::TwoPair(DetValue::DetCardOneCardTwoAndHigCard(
+                hand[4].0.clone(),
+                hand[0].0.clone(),
+                hand[2].0.clone(),
+            )))
+        } else if hand[2].0.get_value() == hand[1].0.get_value()
+            && hand[4].0.get_value() == hand[3].0.get_value()
+        {
+            Some(Value::TwoPair(DetValue::DetCardOneCardTwoAndHigCard(
+                hand[4].0.clone(),
+                hand[2].0.clone(),
+                hand[0].0.clone(),
+            )))
+        } else {
+            None
+        }
     }
 
     fn one_pair(hand: &mut Vec<(Card, bool)>) -> Option<Value> {
-        None
+        if hand[0].0.get_value() == hand[1].0.get_value() {
+            hand[0].1 = true;
+            hand[1].1 = true;
+
+            Some(Value::OnePair(DetValue::DetCardAndHighCard(
+                hand[0].0.clone(),
+                Hand::high_card(hand).unwrap().get_card(),
+            )))
+        } else if hand[1].0.get_value() == hand[2].0.get_value() {
+            hand[2].1 = true;
+            hand[1].1 = true;
+            Some(Value::OnePair(DetValue::DetCardAndHighCard(
+                hand[1].0.clone(),
+                Hand::high_card(hand).unwrap().get_card(),
+            )))
+        } else if hand[2].0.get_value() == hand[3].0.get_value() {
+            hand[2].1 = true;
+            hand[3].1 = true;
+            Some(Value::OnePair(DetValue::DetCardAndHighCard(
+                hand[2].0.clone(),
+                Hand::high_card(hand).unwrap().get_card(),
+            )))
+        } else if hand[3].0.get_value() == hand[4].0.get_value() {
+            hand[3].1 = true;
+            hand[4].1 = true;
+            Some(Value::OnePair(DetValue::DetCardAndHighCard(
+                hand[3].0.clone(),
+                Hand::high_card(hand).unwrap().get_card(),
+            )))
+        } else {
+            None
+        }
     }
 
     fn high_card(hand: &Vec<(Card, bool)>) -> Option<Value> {
+        let mut aux = false;
         let mut cardaux: Option<Card> = None;
-        for (index, (card, used)) in hand.iter().enumerate() {
+        for (_, (card, used)) in hand.iter().enumerate() {
             if !used {
                 cardaux = match cardaux {
                     None => Some(card.clone()),
@@ -333,12 +476,26 @@ impl Hand {
                         }
                     }
                 }
+            } else {
+                aux = true;
             }
         }
 
         match cardaux {
             None => None,
-            Some(card) => Some(Value::HighCard(DetValue::DetCard(card))),
+            Some(card) => {
+                if aux {
+                    Some(Value::HighCard(DetValue::DetCard(card)))
+                } else {
+                    Some(Value::HighCard(DetValue::DetFullHand(
+                        hand[4].0.clone(),
+                        hand[3].0.clone(),
+                        hand[2].0.clone(),
+                        hand[1].0.clone(),
+                        hand[0].0.clone(),
+                    )))
+                }
+            }
         }
     }
 
@@ -363,39 +520,55 @@ fn main() {
     let c3 = Card::Ace(CardType::Hearts);
     let c4 = Card::Two(CardType::Spades);
 
-    let d1 = DetValue::DetCardAndHigCard(c1, c2);
-    let d2 = DetValue::DetCardAndHigCard(c3, c4);
+    let d1 = DetValue::DetCardAndHighCard(c1, c2);
+    let d2 = DetValue::DetCardAndHighCard(c3, c4);
 
     let h1 = Value::ThreeOfaKind(d1);
     let h2 = Value::ThreeOfaKind(d2);
 
     println!("{}", h1 < h2);
 
-    let hand1 = Hand::new("4S JH 5D 3S 6H", 1);
+    let hand1 = Hand::new("AS AC KS KC 6S", 1); // HC
     println!("{:#?}", hand1.hand_value);
 
     println!("============================================================================");
 
-    let hand2 = Hand::new("3H AH 5H 6H JH", 0);
-    println!("{:#?}", hand2.hand_value);
+    /*let hand2 = Hand::new("2H 2D 2C 8H 5H", 0); // Color
+    println!("{:#?}", hand2.hand_value);*/
 
+    /*
     println!("============================================================================");
 
-    let hand3 = Hand::new("4S 7H 6D 5S 3H", 0);
+    let hand3 = Hand::new("4S 7H 6D 5S 3H", 0); // escalera sucia
     println!("{:#?}", hand3.hand_value);
 
     println!("============================================================================");
 
-    let hand4 = Hand::new("4S 7S 6S 5S 3S", 0);
+    let hand4 = Hand::new("4S 7S 6S 5S 3S", 0); // Escalera Color
     println!("{:#?}", hand4.hand_value);
 
     println!("============================================================================");
 
-    let hand5 = Hand::new("4S 4H 4D 4S AS", 0);
+    let hand5 = Hand::new("4S 4H 4D 4S AS", 0); // 4
     println!("{:#?}", hand5.hand_value);
 
     println!("============================================================================");
 
-    let hand6 = Hand::new("4S 4H AD AS AS", 0);
+    let hand6 = Hand::new("4S 4H AD AS AS", 0); // 3 y 2
     println!("{:#?}", hand6.hand_value);
+
+    println!("============================================================================");
+
+    let hand7 = Hand::new("4S 4H 7D AS 4S", 0); // 3
+    println!("{:#?}", hand7.hand_value);
+
+    println!("============================================================================");
+
+    let hand8 = Hand::new("4S 4H 7D AS 7S", 0); //  2 2
+    println!("{:#?}", hand8.hand_value);
+
+    println!("============================================================================");
+
+    let hand9 = Hand::new("4S 4H 7D AS QS", 0); // 2
+    println!("{:#?}", hand9.hand_value);*/
 }
